@@ -98,20 +98,14 @@ plus the one-time join/marker bookkeeping commits. Syncing excludes the template
 own commits going forward, leaving just those few bookkeeping commits and your own
 real work.
 
-**Known limitation:** Classroom50's own setup files (`.classroom50.yaml` and similar)
-will still show up as "changed" in the Feedback PR even though you never touched
-them. This is an accepted trade-off, not a bug.
+**Known limitation, autograded assignments only:** `.classroom50.yaml` (created at
+accept time, only when the assignment uses autograding) will still show up as
+"changed" in the Feedback PR even though you never touched it. This is an accepted
+trade-off, not a bug.
 
-`.classroom50.yaml` is created at accept time, so it's technically an ancestor of
-*both* `main` and `feedback` — but GitHub's PR diff doesn't use just any shared
-ancestor, it uses the *most recent* one (`git merge-base`). Every template update
-you merge in adds a new, more recent point that's *also* shared by both branches
-(each sync commit carries the merged-in template commit forward as its second
-parent) — and that more recent common point sits on the template's own lineage,
-which never had `.classroom50.yaml` to begin with. So the merge-base keeps landing
-on the template's side of history, where the file simply doesn't exist, rather than
-on the shared accept-time commit that actually created it. The alternative
-(pointing `feedback` straight at a commit that's already part of your branch's real
-history) would avoid that, but it would also hide how you resolved any real merge
-conflicts along the way — which matters more for a PR meant to be read and
-commented on.
+It's technically a shared ancestor of `main` and `feedback`, but GitHub's PR diff
+uses the *most recent* one (`git merge-base`), and every synced template update
+pushes that point further up the template's own lineage, which never had the file.
+Pointing `feedback` straight at a commit already in your branch's real history
+would avoid this, but would also hide any real merge-conflict resolutions — which
+matters more for a PR meant to be read and commented on.
