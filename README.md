@@ -11,7 +11,7 @@ cleanly.
 ## Usage
 
 ```
-TEMPLATE_URL=<template repo URL> uv run https://raw.githubusercontent.com/c-meier/join_template_history/main/join_template_history.py
+TEMPLATE_URL=<template repo URL> uv run https://raw.githubusercontent.com/c-meier/join_template_history/main/join_template_history.py join
 ```
 
 - `TEMPLATE_URL` (required): URL of the template repo.
@@ -19,6 +19,9 @@ TEMPLATE_URL=<template repo URL> uv run https://raw.githubusercontent.com/c-meie
 - `--quiet` / `-q` (or `QUIET=1`): only print errors and the result.
 
 Requires [uv](https://docs.astral.sh/uv/getting-started/installation/) and `git`.
+
+Two subcommands: `join` (above, the one-time student setup) and `sync-feedback`
+(below).
 
 ## What it does
 
@@ -56,7 +59,7 @@ branch off a non-`main` branch, which still shares that branch's history and nam
 only by coincidence). Rather than guess and risk a silent wrong join, it just fails
 with a clear error if no match is found on `TEMPLATE_BRANCH`.
 
-## Keeping the Feedback PR's diff clean: `--sync-feedback-branch`
+## Keeping the Feedback PR's diff clean: `sync-feedback`
 
 Classroom50's "feedback" branch is frozen at accept time. As you merge template
 updates into your work, the Feedback PR's "Files changed" (which compares `feedback`
@@ -64,7 +67,7 @@ against your branch) starts showing those template updates too, not just your ow
 work.
 
 Here's the shape of history after the one-time join, two rounds of merging in a
-template update, and running `--sync-feedback-branch` after each:
+template update, and running `sync-feedback` after each:
 
 ![History after a join and two merge/sync rounds](history-graph.svg)
 
@@ -75,7 +78,7 @@ diff of `feedback` against `main` shows only your own work ("work 1", "work 2"
 above), never the template content pulled in by the "merge" commits.
 
 ```
-TEMPLATE_URL=<template repo URL> uv run https://raw.githubusercontent.com/c-meier/join_template_history/main/join_template_history.py --sync-feedback-branch
+TEMPLATE_URL=<template repo URL> uv run https://raw.githubusercontent.com/c-meier/join_template_history/main/join_template_history.py sync-feedback
 ```
 
 - `FEEDBACK_BRANCH` (optional, default `feedback`): the branch to sync.

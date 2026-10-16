@@ -25,12 +25,15 @@ mapping from student branch to template branch isn't reliable in general (a stud
 could branch off a non-main branch locally, etc.), so this refuses to guess rather
 than risk a silent wrong join; it fails with a clear error instead.
 
---sync-feedback-branch: a separate mode for keeping Classroom50's "feedback" branch
-(FEEDBACK_BRANCH, default "feedback") in sync with whatever template content has
-actually been merged into the current branch, so the Feedback PR's "Files changed"
-diff shows only the student's own work, not template updates they pulled in along
-the way. This computes a ready-to-push commit and prints the push command -- it
-never pushes anything itself.
+Two subcommands:
+
+  join              The one-time history link above (the default student flow).
+  sync-feedback     Keeps Classroom50's "feedback" branch (FEEDBACK_BRANCH, default
+                     "feedback") in sync with whatever template content has actually
+                     been merged into the current branch, so the Feedback PR's "Files
+                     changed" diff shows only the student's own work, not template
+                     updates they pulled in along the way. Computes a ready-to-push
+                     commit and prints the push command -- never pushes itself.
 """
 import argparse
 import os
@@ -155,8 +158,8 @@ def no_operation_in_progress():
     main() is about to run update-ref on the current branch, which is unsafe to do
     mid-merge/rebase/cherry-pick/bisect. sync_feedback_branch() never writes any
     local ref at all, so it doesn't need this gate -- applying it there would block a
-    perfectly safe --sync-feedback-branch run over something happening on an
-    unrelated branch."""
+    perfectly safe sync-feedback run over something happening on an unrelated
+    branch."""
     git_dir = git_out("rev-parse", "--git-dir")
     in_progress = []
     if git_ok("rev-parse", "-q", "--verify", "MERGE_HEAD"):
@@ -290,8 +293,7 @@ def sync_feedback_branch():
     merge_point = git_out("merge-base", current_branch, f"template/{TEMPLATE_BRANCH}", check=False)
     if not merge_point:
         return fail(
-            f"{current_branch!r} has no merged template history yet — run this script without "
-            f"--sync-feedback-branch first."
+            f"{current_branch!r} has no merged template history yet — run the 'join' subcommand first."
         )
 
     # No branch.<current_branch>.remote config to go on: `git clone` auto-sets tracking
@@ -404,11 +406,20 @@ def sync_feedback_branch():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--quiet", "-q", action="store_true")
-    parser.add_argument("--sync-feedback-branch", action="store_true",
-                         help="Print a ready-to-push commit that updates FEEDBACK_BRANCH to the "
-                              "template content merged into the current branch, instead of doing "
-                              "the one-time history join. Never pushes anything itself.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    subparsers.add_parser(
+        "join", help="One-time history link (the default student flow). Run from the student repo.")
+
+    subparsers.add_parser(
+        "sync-feedback",
+        help="Print a ready-to-push commit that updates FEEDBACK_BRANCH to the template content "
+             "merged into the current branch. Never pushes anything itself.")
+
     args = parser.parse_args()
     if args.quiet:
         QUIET = True
-    sys.exit(sync_feedback_branch() if args.sync_feedback_branch else main())
+    if args.command == "sync-feedback":
+        sys.exit(sync_feedback_branch())
+    else:
+        sys.exit(main())

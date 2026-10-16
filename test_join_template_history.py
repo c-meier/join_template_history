@@ -197,7 +197,7 @@ def run_script(
     if extra_env:
         env.update(extra_env)
     return subprocess.run(
-        [sys.executable, SCRIPT, *(args or [])],
+        [sys.executable, SCRIPT, *(args if args is not None else ["join"])],
         cwd=student.path,
         env=env,
         capture_output=True,
@@ -206,11 +206,11 @@ def run_script(
 
 
 def run_sync_feedback_branch(student: Repo, template_url: str) -> subprocess.CompletedProcess[str]:
-    return run_script(student, template_url, args=["--sync-feedback-branch"])
+    return run_script(student, template_url, args=["sync-feedback"])
 
 
 def sync_and_push_feedback(student: Repo, template_url: str) -> subprocess.CompletedProcess[str]:
-    """Runs --sync-feedback-branch and, unless it reports nothing to do, actually runs
+    """Runs the sync-feedback subcommand and, unless it reports nothing to do, actually runs
     the push command it prints -- the same two steps a student/professor would do by
     hand. Needed whenever a later step depends on FEEDBACK_BRANCH's state on the
     remote actually having moved (idempotency checks, multiple sync rounds, or
@@ -231,7 +231,7 @@ def sync_and_push_feedback(student: Repo, template_url: str) -> subprocess.Compl
 
 
 def sync_feedback_branch_commit(student: Repo, template_url: str) -> str:
-    """Runs --sync-feedback-branch and returns the sha of the commit it computed,
+    """Runs the sync-feedback subcommand and returns the sha of the commit it computed,
     without pushing it anywhere. That commit already exists as a real object in
     student's local repo the moment the script finishes -- pushing it only matters
     for tests that care about the remote's state afterward (see
@@ -900,7 +900,7 @@ class JoinTemplateHistoryTests(unittest.TestCase):
         self.assertTrue((student.path / "a.txt").exists())
         self.assertTrue((student.path / "b.txt").exists())
 
-    # ---- --sync-feedback-branch ----
+    # ---- sync-feedback subcommand ----
 
     def test_sync_feedback_branch_fails_if_current_branch_never_joined(self) -> None:
         tpl = TemplateBuilder(self.tmp / "template")
