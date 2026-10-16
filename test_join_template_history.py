@@ -78,7 +78,9 @@ class Repo:
         return result.stdout.strip()
 
     def write_file(self, name: str, content: str) -> None:
-        (self.path / name).write_text(content)
+        path = self.path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
 
     def commit_file(self, filename: str, content: str, message: str) -> "Commit":
         """Writes `filename` and commits it in one step -- the common case for both
@@ -254,6 +256,7 @@ def make_accepted_student_repo(
     template_tree_commit: Commit,
     branch: str = "main",
     with_feedback_marker: bool = True,
+    with_setup_commit: bool = True,
     origin: Path | None = None,
     shared_clock: bool = True,
 ) -> Repo:
@@ -265,6 +268,14 @@ def make_accepted_student_repo(
     the two are the same real feature, not independent choices. When `origin` is given,
     pushes straight to it: that's how Classroom50 actually hands students a repo, with
     the content already on GitHub, not a separately-pushed afterthought.
+
+    `with_setup_commit` mimics an assignment with `no_autograder: true` (or
+    `empty_repo: true`) -- confirmed against a real accepted repo and Classroom50's
+    own source (foundation50/classroom50, "skip .classroom50.yaml for no_autograder
+    assignments", v1.56.0): `acceptWithoutSetupCommit` writes no files at all, so the
+    root commit (template content, unmodified) is immediately followed by the "Open
+    Feedback PR" marker with nothing in between -- `feedback` ends up frozen directly
+    on the root commit itself, not on a later classroom-init commit.
 
     `shared_clock` makes the student repo tick the SAME Clock as the template
     `template_tree_commit` came from, so events across both repos read in the order
@@ -299,9 +310,53 @@ def make_accepted_student_repo(
         # regardless of whether that happens before or after this call in test code.
         accept_time = template_tree_commit.when + timedelta(seconds=1)
     student.commit("Initial commit", when=accept_time)
-    student.write_file(".classroom50.yaml", "autograde: true\n")
-    student.commit("[Classroom 50] Initialize .classroom50.yaml and autograde workflow (gh student accept)",
-                    when=accept_time)
+    if with_setup_commit:
+        # Real shape of both files, from Classroom50's own source
+        # (createClassroom50Yaml / defaultAutograderWorkflow in
+        # web/src/domain/assignments/autograderYaml.ts, foundation50/classroom50) --
+        # landed together in one commit, matching assignmentAcceptTree committing
+        # both in a single tree. A static copy, not generated -- it can drift if
+        # Classroom50 changes that rendering (it has before: v1.56.0 added the
+        # no_autograder skip entirely). To check whether it still has:
+        #   1. `gh student accept <org> <classroom> <assignment>` against a real
+        #      assignment with autograding ON (no_autograder must be unset/false --
+        #      that path commits nothing at all, see with_setup_commit=False below).
+        #   2. Inspect the new repo's .classroom50.yaml and
+        #      .github/workflows/autograde.yaml.
+        #   3. Diff their shape against what's hardcoded here; if it moved, the
+        #      source file above has the authoritative current rendering.
+        student.write_file(".classroom50.yaml", (
+            'schema: "classroom50/repo-config/v1"\n'
+            'classroom: "bdr-a"\n'
+            'assignment: "lab1"\n'
+            "owner:\n"
+            '  username: "student1"\n'
+            "  id: 12345\n"
+            f'  accepted_at: "{accept_time.isoformat().replace("+00:00", "Z")}"\n'
+            "source:\n"
+            '  owner: "org"\n'
+            "  owner_id: 1\n"
+            '  repo: "template"\n'
+            '  branch: "main"\n'
+        ))
+        student.write_file(".github/workflows/autograde.yaml", (
+            "name: Autograde\n"
+            "\n"
+            "on:\n"
+            "  push:\n"
+            '    branches: ["main"]\n'
+            '    tags: ["submit/*"]\n'
+            "\n"
+            "jobs:\n"
+            "  grade:\n"
+            '    uses: "org/classroom50/.github/workflows/autograde-runner.yaml@main"\n'
+            "    permissions:\n"
+            "      contents: write\n"
+            "      statuses: write\n"
+            "      pull-requests: write\n"
+        ))
+        student.commit("[Classroom 50] Initialize .classroom50.yaml and autograde workflow (gh student accept)",
+                        when=accept_time)
     branches_to_push = [branch]
     if with_feedback_marker:
         student.commit("[Classroom 50] Open Feedback PR (gh student accept)\n\n[skip ci]", empty=True,
@@ -480,6 +535,42 @@ class JoinTemplateHistoryTests(unittest.TestCase):
         self.assertEqual(merge.returncode, 0, merge.stdout + merge.stderr)
         self.assertEqual((student.path / "file.txt").read_text(), "student's own edit\n")
         self.assertEqual(student.status(), "")
+
+    def test_join_works_on_a_no_autograder_accept_with_no_setup_commit(self) -> None:
+        # A `no_autograder: true` (or `empty_repo: true`) assignment's accept writes
+        # no files at all (confirmed against Classroom50's own source and a real
+        # accepted repo) -- the root commit is immediately followed by the "Open
+        # Feedback PR" marker, with no .classroom50.yaml commit in between. The root
+        # commit itself is still just the template's own unmodified content, so the
+        # join must succeed exactly as in the normal case.
+        tpl = TemplateBuilder(self.tmp / "template")
+        accept_point = tpl.commit_file("file.txt", "hello\n", "initial")
+
+        student = make_accepted_student_repo(self.tmp, accept_point, with_setup_commit=False)
+        result = run_script(student, str(tpl.path))
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(accept_point.sha, student.parents_of_head())
+
+    def test_join_works_with_neither_setup_commit_nor_feedback_pr(self) -> None:
+        # One step further than the no_autograder case above: with `feedback_pr: false`
+        # too (and no Pages), Classroom50's needsBranch check goes false and the whole
+        # feedback/setup step never runs at all -- `main` ends up with literally just
+        # the root commit, nothing else, and no `feedback` branch is ever created.
+        # Confirmed empirically (see git log in the commit that added this test). The
+        # join only needs a single root commit reachable from HEAD, so this must still
+        # succeed even though HEAD and that root are the very same, only commit.
+        tpl = TemplateBuilder(self.tmp / "template")
+        accept_point = tpl.commit_file("file.txt", "hello\n", "initial")
+
+        student = make_accepted_student_repo(
+            self.tmp, accept_point, with_setup_commit=False, with_feedback_marker=False,
+        )
+        self.assertEqual(len(student.git("log", "--oneline", "--all").splitlines()), 1)
+        result = run_script(student, str(tpl.path))
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(accept_point.sha, student.parents_of_head())
 
     # ---- template unchanged since accept: nothing to do, no spurious commit ----
 
@@ -822,6 +913,49 @@ class JoinTemplateHistoryTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("has no merged template history yet", result.stderr)
 
+    def test_sync_feedback_branch_fails_cleanly_when_feedback_branch_never_existed(self) -> None:
+        # With `feedback_pr: false` (see test_join_works_with_neither_setup_commit_nor_
+        # feedback_pr), Classroom50 never creates a `feedback` branch at all -- there's
+        # nothing to sync against, so this must fail clearly on the fetch rather than
+        # crash or silently do nothing.
+        tpl = TemplateBuilder(self.tmp / "template")
+        accept_point = tpl.commit_file("file.txt", "hello\n", "initial")
+        origin = init_bare_repo(self.tmp / "origin.git")
+        student = make_accepted_student_repo(
+            self.tmp, accept_point, with_setup_commit=False, with_feedback_marker=False, origin=origin,
+        )
+        run_script(student, str(tpl.path))
+
+        result = run_sync_feedback_branch(student, str(tpl.path))
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("could not fetch 'feedback' from 'origin'", result.stderr)
+
+    def test_sync_feedback_branch_works_on_a_no_autograder_accept_with_no_setup_commit(self) -> None:
+        # Same real scenario as test_join_works_on_a_no_autograder_accept_with_no_setup_commit
+        # (a no_autograder/empty_repo assignment: no .classroom50.yaml, no classroom-init
+        # commit -- feedback is frozen directly on the root commit itself). single_root_tree's
+        # fallback (no SYNC_MARKER on a first sync) must still find that one root correctly
+        # and sync cleanly, same as the normal with-setup-commit case.
+        tpl = TemplateBuilder(self.tmp / "template")
+        accept_point = tpl.commit_file("shared.txt", "v1\n", "initial")
+        origin = init_bare_repo(self.tmp / "origin.git")
+        student = make_accepted_student_repo(self.tmp, accept_point, with_setup_commit=False, origin=origin)
+        run_script(student, str(tpl.path))
+
+        tpl.commit_file("shared.txt", "v2\n", "template update")
+        run_script(student, str(tpl.path))
+        merge = student.merge("template/main")
+        self.assertEqual(merge.returncode, 0, merge.stdout + merge.stderr)
+        student.commit_file("student_work.py", "print('mine')\n", "my own work")
+
+        sync_and_push_feedback(student, str(tpl.path))
+
+        student.fetch("feedback")
+        diff_files = set(student.diff_files("FETCH_HEAD...main"))
+        self.assertIn("student_work.py", diff_files)
+        self.assertNotIn("shared.txt", diff_files)
+
     def test_sync_feedback_branch_fails_cleanly_on_its_own_merge_conflict(self) -> None:
         # Distinct from test_sync_feedback_branch_shows_students_conflict_resolution,
         # which covers a conflict in the STUDENT's own `git merge template/main` (on
@@ -1141,9 +1275,9 @@ class JoinTemplateHistoryTests(unittest.TestCase):
         # grew instead of staying at exactly 2 after each sync). The explicit ls-tree
         # check at each round matters because diff_files alone can't tell the
         # difference: a three-dot diff's base always resolves to the template's own
-        # raw commit (see sync_feedback_branch's docstring), so .classroom50.yaml
-        # would show up as "changed" there whether or not it's actually preserved on
-        # FEEDBACK_BRANCH's own tree -- only ls-tree can confirm the latter.
+        # raw commit (see sync_feedback_branch's docstring), so the accept-time files
+        # would show up as "changed" there whether or not they're actually preserved
+        # on FEEDBACK_BRANCH's own tree -- only ls-tree can confirm the latter.
         tpl = TemplateBuilder(self.tmp / "template")
         accept_point = tpl.commit_file("shared.txt", "v1\n", "initial")
         origin = init_bare_repo(self.tmp / "origin.git")
@@ -1162,13 +1296,17 @@ class JoinTemplateHistoryTests(unittest.TestCase):
 
             student.fetch("feedback")
             diff_files = set(student.diff_files("FETCH_HEAD...main"))
-            expected = {".classroom50.yaml"} | {f"work{j}.py" for j in range(1, i + 1)}
+            expected = {".classroom50.yaml", ".github/workflows/autograde.yaml"} | \
+                {f"work{j}.py" for j in range(1, i + 1)}
             self.assertEqual(diff_files, expected, f"round {i}")
             self.assertEqual(student.git("show", "FETCH_HEAD:shared.txt"), f"v{i + 1}", f"round {i}")
             self.assertEqual(len(student.git("log", "-1", "--format=%P", "FETCH_HEAD").split()), 2,
                               f"round {i}: feedback tip should always have exactly 2 parents")
-            self.assertIn(".classroom50.yaml", student.git("ls-tree", "-r", "--name-only", "FETCH_HEAD").splitlines(),
+            tree_paths = student.git("ls-tree", "-r", "--name-only", "FETCH_HEAD").splitlines()
+            self.assertIn(".classroom50.yaml", tree_paths,
                           f"round {i}: .classroom50.yaml must still be literally on FEEDBACK_BRANCH's own tree")
+            self.assertIn(".github/workflows/autograde.yaml", tree_paths,
+                          f"round {i}: autograde.yaml must still be literally on FEEDBACK_BRANCH's own tree")
 
         self.assertIn("already in sync", sync_and_push_feedback(student, str(tpl.path)).stdout)
 
