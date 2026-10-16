@@ -588,6 +588,42 @@ class JoinTemplateHistoryTests(unittest.TestCase):
         self.assertIn("already joined and up to date", second.stdout)
         self.assertEqual(student.tip(), head_after_join)
 
+    def test_join_is_a_no_op_if_classroom50_ever_copies_real_history_instead_of_content(self) -> None:
+        # This script exists because Classroom50 currently copies only the template's
+        # CONTENT into a fresh, unrelated-history repo at accept time -- if that ever
+        # changed to copying the template's real git history instead (e.g. a genuine
+        # fork/clone), the student repo would already share real ancestry with the
+        # template from the moment it's created, before this script ever runs. The
+        # existing "already joined" check (merge-base with template/TEMPLATE_BRANCH)
+        # doesn't care *why* a common ancestor exists -- artificially added by this
+        # script, or genuinely there from the start -- so this must degrade to a clean,
+        # idempotent no-op with zero code changes, never attempting (or needing) to
+        # add its own artificial link commit on top of real history that already links
+        # them.
+        tpl = TemplateBuilder(self.tmp / "template")
+        accept_point = tpl.commit_file("file.txt", "hello\n", "initial")
+
+        student_path = self.tmp / "student"
+        subprocess.run(["git", "clone", "-q", str(tpl.path), str(student_path)], check=True)
+        student = Repo(student_path)
+        # `git clone` auto-sets "origin" to the clone source, but a real accepted repo's
+        # "origin" always points at the student's own GitHub repo, never at the template
+        # itself -- only its *history* would be shared in the hypothetical this test is
+        # simulating. Dropping it keeps the repo from claiming a remote relationship that
+        # wouldn't exist in reality.
+        student.git("remote", "remove", "origin")
+        self.assertEqual(student.git("rev-parse", "HEAD"), accept_point.sha)
+
+        first = run_script(student, str(tpl.path))
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertIn("already joined and up to date", first.stdout)
+        self.assertEqual(student.git("rev-parse", "HEAD"), accept_point.sha)
+
+        second = run_script(student, str(tpl.path))
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertIn("already joined and up to date", second.stdout)
+        self.assertEqual(student.git("rev-parse", "HEAD"), accept_point.sha)
+
     def test_local_student_commit_between_runs_does_not_confuse_already_joined(self) -> None:
         # The student moving HEAD forward with their own, unrelated work must not make
         # the second run think there's a fresh join to do, misreport the template as
