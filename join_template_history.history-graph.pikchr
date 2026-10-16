@@ -1,0 +1,113 @@
+# Rendered with: pikchr --svg-only join_template_history.history-graph.pikchr
+#              > join_template_history.history-graph.svg
+#
+# Node shas/parents/messages are real output from an example run (see the
+# README's --sync-feedback-branch section) -- not hand-invented.
+#
+# Positioning is relative throughout: `linewid` is the one default step
+# between consecutive commits on the main lane; `gap` offsets a feedback sync
+# just after the work commit it follows; `tgap` offsets a template commit
+# further before the main-lane commit that merges it in.
+scale = 1.0
+linewid = 0.5
+gap = 0.22
+tgap = 0.42
+noderad = 0.09
+circlerad = noderad
+template_y = 0.52
+feedback_y = -0.52
+fill = white
+distLabel = 0.22
+stepV = 0.9cm
+stepH = 0.6cm
+
+# ---- main lane circles, left to right by creation order, one `linewid` apart
+# (color set once, not repeated per circle) ----
+NInit:    circle color white fill forestgreen thickness 0 "a7" small at (0, 0)
+arrow color forestgreen
+NAccept:  circle "6e" small same
+arrow same
+NPrmark:  circle "5a" small same
+arrow same
+NJoin:    circle "3b" small same
+arrow same
+NMerge1:  circle "ea" small same
+arrow same
+NWork1:   circle "4e" small same
+arrow same
+NMerge2:  circle "8c" small same
+arrow same
+NWork2:   circle "e4" small same
+
+color = forestgreen
+text "main" ljust bold
+text "Initial" small at NInit+(0, distLabel)
+text "accept setup" small at NAccept+(0,distLabel)
+text "PR marker" small at NPrmark+(0,distLabel)
+text "Join" small at NJoin+(0,distLabel)
+text "merge 1" small at NMerge1+(0,distLabel)
+text "work 1" small at NWork1+(0,distLabel)
+text "merge 2" small at NMerge2+(0,distLabel)
+text "work 2" small at NWork2+(0,distLabel)
+
+# ---- template lane circles: T0 predates everything on main (the template
+# repo has to exist before Classroom50 can create a student repo from it);
+# T1/T2 sit `tgap` before the main-lane commit that merges them in ----
+NT0: circle same fill royalblue "3f" small at (NInit.x - linewid, template_y)
+arrow same color royalblue right until even with (NMerge1.x - 1.5cm, NMerge1.y)
+NT1: circle "cf" small same
+arrow same right until even with (NMerge2.x - 1.5cm, NMerge2.y)
+NT2: circle "2b" small same
+
+color = royalblue
+text "template/main" ljust bold
+
+text "accept pt" small at NT0+(0,distLabel)
+text "round 1" small at NT1+(0,distLabel)
+text "round 2" small at NT2+(0,distLabel)
+
+# ---- feedback lane circles: forks off main at NAccept; each sync happens
+# right after that round's work commit, so it sits just `gap` after it ----
+NF1: circle same fill purple "c8" small at (NWork1.x + gap, feedback_y)
+arrow same color purple
+NF2: circle "19" small same
+
+
+
+color = purple
+text "feedback" ljust bold
+
+
+arrow same <- from NF1 left until even with NAccept+(stepH,0) then to NAccept chop
+
+text "sync 1" small at NF1+(0,distLabel)
+text "sync 2" small at NF2+(0,distLabel)
+
+
+# ---- Classroom50 copies the template's content to create the student repo --
+# NOT a git parent link like the dashed lines below (that's the whole point of
+# this script: the two histories start out genuinely unrelated), so drawn
+# distinctly: curved, colored, arrowed, and labeled -- the one explicit color
+# override among all the arrows ----
+arc -> color 0xd9822b ccw rad 1.1 from NT0.s to NInit.w chop "copy"  small italic
+
+# ---- cross-lane edges, two different kinds:
+# - the SECOND parent each join/merge/sync commit has (content brought in from
+#   the template's genuinely separate history) -- dashed, since that's the
+#   whole point of this script: these two histories start out unrelated.
+# - NF1's FIRST parent (NAccept) is not one of these: it's just feedback's own
+#   direct lineage continuing forward (feedback sat right there, unmoved,
+#   until this first sync), the same kind of relationship as every solid
+#   same-lane arrow above -- so it's drawn solid too, not dashed, even though
+#   it happens to cross from main's row into feedback's.
+# All drawn oblique/horizontal/oblique rather than one straight diagonal, so
+# the flat middle stretch reads clearly as "crossing lanes"; `elbow` controls
+# how much of the x-run is spent on each oblique leg, `hi` biases that flat
+# stretch up toward the higher-lane endpoint (every one of these lines runs
+# from a lower main/feedback node to a higher one). ----
+
+arrow <- dashed color royalblue from NJoin left stepH up stepV then left until even with NT0+(stepH,0) then to NT0 chop
+arrow same from NMerge1 to NT1
+arrow same from NMerge2 to NT2
+arrow same from NF1 left stepH up stepV then left until even with NT1+(stepH,0) then to NT1
+arrow same from NF2 left stepH up stepV then left until even with NT2+(stepH,0) then to NT2

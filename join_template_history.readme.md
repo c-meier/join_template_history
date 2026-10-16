@@ -20,18 +20,6 @@ TEMPLATE_URL=<template repo URL> uv run https://gist.githubusercontent.com/c-mei
 
 Requires [uv](https://docs.astral.sh/uv/getting-started/installation/) and `git`.
 
-### Single-branch templates only
-
-This script always joins against one fixed template branch (`TEMPLATE_BRANCH`,
-`main` by default), no matter which local branch you run it on. It does **not**
-support Classroom50's "copy every branch of the template" setting — where a
-student branch like `dev` should join against `template/dev` rather than
-`template/main` — because there's no reliable way to map a student's branch name
-back to the right template branch in general (e.g. a student could create a local
-branch off a non-`main` branch, which still shares that branch's history and name
-only by coincidence). Rather than guess and risk a silent wrong join, it just fails
-with a clear error if no match is found on `TEMPLATE_BRANCH`.
-
 ## What it does
 
 The script looks through the template's history for the commit whose content
@@ -56,13 +44,17 @@ merge or a rebase loses it (they don't keep the ancestor the script added). If
 that happens, just rerun the script on `main`: idempotent, it fixes the
 situation immediately.
 
-## After running it
+### Single-branch templates only
 
-Push the result:
-
-```
-git push origin <your-branch>
-```
+This script always joins against one fixed template branch (`TEMPLATE_BRANCH`,
+`main` by default), no matter which local branch you run it on. It does **not**
+support Classroom50's "copy every branch of the template" setting — where a
+student branch like `dev` should join against `template/dev` rather than
+`template/main` — because there's no reliable way to map a student's branch name
+back to the right template branch in general (e.g. a student could create a local
+branch off a non-`main` branch, which still shares that branch's history and name
+only by coincidence). Rather than guess and risk a silent wrong join, it just fails
+with a clear error if no match is found on `TEMPLATE_BRANCH`.
 
 ## Keeping the Feedback PR's diff clean: `--sync-feedback-branch`
 
@@ -74,39 +66,13 @@ work.
 Here's the shape of history after the one-time join, two rounds of merging in a
 template update, and running `--sync-feedback-branch` after each:
 
-```
-template/main:   T0 ──────────── T1 ──────────── T2
-                 (accept point)   (template         (template
-                                    update)            update)
-
-main:        A ── B ── J ── M1 ── W1 ── M2 ── W2
-                       │     │           │
-                      2nd   2nd         2nd
-                    parent parent     parent
-                       ↓     ↓           ↓
-                       T0    T1          T2
-
-feedback:    A ── B ──────── F1 ──────────────── F2
-                               │                    │
-                              2nd                  2nd
-                            parent                parent
-                               ↓                    ↓
-                               T1                    T2
-```
-
-- `A`, `B`: Classroom50's accept-time commits — identical on `main` and
-  `feedback` until anything below happens.
-- `J`: the one-time join (running this script with no flags).
-- `M1`, `M2`: your own `git merge template/main`.
-- `W1`, `W2`: your own work, committed normally.
-- `F1`, `F2`: the sync commits this flag computes — each one you push yourself
-  with the `git push ...` command it prints.
+![History after a join and two merge/sync rounds](join_template_history.history-graph.svg)
 
 Every commit on `feedback`'s own line is a real ancestor of the next: each sync
 only ever fast-forwards it, never rewrites it. Each sync commit's second parent
 pins it to exactly the template content merged into `main` at that point, so a
-diff of `feedback` against `main` shows only `W1`/`W2`-style work, never `M1`/`M2`'s
-template content.
+diff of `feedback` against `main` shows only your own work ("work 1", "work 2"
+above), never the template content pulled in by the "merge" commits.
 
 ```
 TEMPLATE_URL=<template repo URL> uv run <URL of this script> --sync-feedback-branch
@@ -131,10 +97,18 @@ real work.
 
 **Known limitation:** Classroom50's own setup files (`.classroom50.yaml` and similar)
 will still show up as "changed" in the Feedback PR even though you never touched
-them. This is an accepted trade-off, not a bug — GitHub computes a PR's diff from the
-merge-base of the two branches, and since the synced commit is never literally part
-of your branch's own history, that merge-base can only resolve to the template's raw
-commit, which never had those files either. The alternative (pointing `feedback`
-straight at a commit that's already part of your branch's real history) would avoid
-that, but it would also hide how you resolved any real merge conflicts along the
-way — which matters more for a PR meant to be read and commented on.
+them. This is an accepted trade-off, not a bug.
+
+`.classroom50.yaml` is created at accept time, so it's technically an ancestor of
+*both* `main` and `feedback` — but GitHub's PR diff doesn't use just any shared
+ancestor, it uses the *most recent* one (`git merge-base`). Every template update
+you merge in adds a new, more recent point that's *also* shared by both branches
+(each sync commit carries the merged-in template commit forward as its second
+parent) — and that more recent common point sits on the template's own lineage,
+which never had `.classroom50.yaml` to begin with. So the merge-base keeps landing
+on the template's side of history, where the file simply doesn't exist, rather than
+on the shared accept-time commit that actually created it. The alternative
+(pointing `feedback` straight at a commit that's already part of your branch's real
+history) would avoid that, but it would also hide how you resolved any real merge
+conflicts along the way — which matters more for a PR meant to be read and
+commented on.
