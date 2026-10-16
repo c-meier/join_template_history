@@ -1,22 +1,38 @@
-# Rendered with: pikchr --svg-only join_template_history.history-graph.pikchr
-#              > join_template_history.history-graph.svg
+# Rendered with: pikchr --svg-only history-graph.pikchr
+#              > history-graph.svg
 #
-# Node shas/parents/messages are real output from an example run (see the
-# README's --sync-feedback-branch section) -- not hand-invented.
+# Node shas/parents/messages are real output from an example run (one join,
+# two rounds of template-update/merge/sync -- see the README's
+# --sync-feedback-branch section): not hand-invented. For reference, that was
+# `git log --all --format="%h %p | %s"` on the student repo at the end:
+#
+#   1947066 c84fb7d 2b1a31f | Sync feedback to the template content merged into main
+#   c84fb7d 6e27966 cf948b1 | Sync feedback to the template content merged into main
+#   e436178 8c3906e         | my own work 2
+#   8c3906e 4ee8957 2b1a31f | Merge remote-tracking branch 'template/main'
+#   2b1a31f cf948b1         | template round 2
+#   4ee8957 ea4946a         | my own work 1
+#   ea4946a 3bb4bae cf948b1 | Merge remote-tracking branch 'template/main'
+#   3bb4bae 5a0247e 3f71a7f | Join template history at 3f71a7fa6584fd6deceab3e5eb2cf4629666905a
+#   cf948b1 3f71a7f         | template round 1
+#   6e27966 a708914         | [Classroom 50] Initialize .classroom50.yaml and autograde workflow (gh student accept)
+#   5a0247e 6e27966         | [Classroom 50] Open Feedback PR (gh student accept)
+#   a708914                 | Initial commit
+#   3f71a7f                 | feat: add app
 #
 # Positioning is relative throughout: `linewid` is the one default step
 # between consecutive commits on the main lane; `gap` offsets a feedback sync
-# just after the work commit it follows; `tgap` offsets a template commit
-# further before the main-lane commit that merges it in.
+# just after the work commit it follows; `preOffset` offsets a template
+# commit before the main-lane commit that merges it in; `stepH`/`stepV` size
+# the oblique legs of the cross-lane elbow connectors below.
 scale = 1.0
 linewid = 0.5
 gap = 0.22
-tgap = 0.42
+preOffset = 1.5cm
 noderad = 0.09
 circlerad = noderad
 template_y = 0.52
 feedback_y = -0.52
-fill = white
 distLabel = 0.22
 stepV = 0.9cm
 stepH = 0.6cm
@@ -52,11 +68,11 @@ text "work 2" small at NWork2+(0,distLabel)
 
 # ---- template lane circles: T0 predates everything on main (the template
 # repo has to exist before Classroom50 can create a student repo from it);
-# T1/T2 sit `tgap` before the main-lane commit that merges them in ----
+# T1/T2 sit `preOffset` before the main-lane commit that merges them in ----
 NT0: circle same fill royalblue "3f" small at (NInit.x - linewid, template_y)
-arrow same color royalblue right until even with (NMerge1.x - 1.5cm, NMerge1.y)
+arrow same color royalblue right until even with (NMerge1.x - preOffset, NMerge1.y)
 NT1: circle "cf" small same
-arrow same right until even with (NMerge2.x - 1.5cm, NMerge2.y)
+arrow same right until even with (NMerge2.x - preOffset, NMerge2.y)
 NT2: circle "2b" small same
 
 color = royalblue
@@ -101,10 +117,9 @@ arc -> color 0xd9822b ccw rad 1.1 from NT0.s to NInit.w chop "copy"  small itali
 #   same-lane arrow above -- so it's drawn solid too, not dashed, even though
 #   it happens to cross from main's row into feedback's.
 # All drawn oblique/horizontal/oblique rather than one straight diagonal, so
-# the flat middle stretch reads clearly as "crossing lanes"; `elbow` controls
-# how much of the x-run is spent on each oblique leg, `hi` biases that flat
-# stretch up toward the higher-lane endpoint (every one of these lines runs
-# from a lower main/feedback node to a higher one). ----
+# the flat middle stretch reads clearly as "crossing lanes": each one moves
+# left by `stepH` and up by `stepV` (the oblique leg), then runs flat at that
+# raised height until it's above its target, then drops straight down into it.
 
 arrow <- dashed color royalblue from NJoin left stepH up stepV then left until even with NT0+(stepH,0) then to NT0 chop
 arrow same from NMerge1 to NT1

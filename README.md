@@ -11,7 +11,7 @@ cleanly.
 ## Usage
 
 ```
-TEMPLATE_URL=<template repo URL> uv run https://gist.githubusercontent.com/c-meier/c3765656d48eecb25aeb3e172111d993/raw/join_template_history.py
+TEMPLATE_URL=<template repo URL> uv run https://raw.githubusercontent.com/c-meier/join_template_history/main/join_template_history.py
 ```
 
 - `TEMPLATE_URL` (required): URL of the template repo.
@@ -66,7 +66,7 @@ work.
 Here's the shape of history after the one-time join, two rounds of merging in a
 template update, and running `--sync-feedback-branch` after each:
 
-![History after a join and two merge/sync rounds](join_template_history.history-graph.svg)
+![History after a join and two merge/sync rounds](history-graph.svg)
 
 Every commit on `feedback`'s own line is a real ancestor of the next: each sync
 only ever fast-forwards it, never rewrites it. Each sync commit's second parent
