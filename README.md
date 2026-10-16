@@ -1,4 +1,4 @@
-# join_template_history.py
+# Join Template History
 
 A repo distributed by Classroom50 has no git history in common with the
 template repo it came from. If the instructor later updates the template, a
@@ -75,7 +75,7 @@ diff of `feedback` against `main` shows only your own work ("work 1", "work 2"
 above), never the template content pulled in by the "merge" commits.
 
 ```
-TEMPLATE_URL=<template repo URL> uv run <URL of this script> --sync-feedback-branch
+TEMPLATE_URL=<template repo URL> uv run https://raw.githubusercontent.com/c-meier/join_template_history/main/join_template_history.py --sync-feedback-branch
 ```
 
 - `FEEDBACK_BRANCH` (optional, default `feedback`): the branch to sync.

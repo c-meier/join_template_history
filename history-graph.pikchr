@@ -1,10 +1,9 @@
 # Rendered with: pikchr --svg-only history-graph.pikchr
 #              > history-graph.svg
 #
-# Node shas/parents/messages are real output from an example run (one join,
-# two rounds of template-update/merge/sync -- see the README's
-# --sync-feedback-branch section): not hand-invented. For reference, that was
-# `git log --all --format="%h %p | %s"` on the student repo at the end:
+# Real git data (not invented) from an example run -- one join, two rounds of
+# template-update/merge/sync (see README). `git log --all --format="%h %p | %s"`
+# on the student repo at the end:
 #
 #   1947066 c84fb7d 2b1a31f | Sync feedback to the template content merged into main
 #   c84fb7d 6e27966 cf948b1 | Sync feedback to the template content merged into main
@@ -20,11 +19,10 @@
 #   a708914                 | Initial commit
 #   3f71a7f                 | feat: add app
 #
-# Positioning is relative throughout: `linewid` is the one default step
-# between consecutive commits on the main lane; `gap` offsets a feedback sync
-# just after the work commit it follows; `preOffset` offsets a template
-# commit before the main-lane commit that merges it in; `stepH`/`stepV` size
-# the oblique legs of the cross-lane elbow connectors below.
+# Relative positioning: `linewid` = step between main-lane commits; `gap` =
+# offset for a sync after its work commit; `preOffset` = offset for a template
+# commit before the merge that brings it in; `stepH`/`stepV` = elbow-connector
+# leg sizes (below).
 scale = 1.0
 linewid = 0.5
 gap = 0.22
@@ -37,8 +35,7 @@ distLabel = 0.22
 stepV = 0.9cm
 stepH = 0.6cm
 
-# ---- main lane circles, left to right by creation order, one `linewid` apart
-# (color set once, not repeated per circle) ----
+# ---- main lane: left to right by creation order, `linewid` apart ----
 NInit:    circle color white fill forestgreen thickness 0 "a7" small at (0, 0)
 arrow color forestgreen
 NAccept:  circle "6e" small same
@@ -66,9 +63,8 @@ text "work 1" small at NWork1+(0,distLabel)
 text "merge 2" small at NMerge2+(0,distLabel)
 text "work 2" small at NWork2+(0,distLabel)
 
-# ---- template lane circles: T0 predates everything on main (the template
-# repo has to exist before Classroom50 can create a student repo from it);
-# T1/T2 sit `preOffset` before the main-lane commit that merges them in ----
+# ---- template lane: T0 predates main (template must exist before accept);
+# T1/T2 sit `preOffset` before the commit that merges them in ----
 NT0: circle same fill royalblue "3f" small at (NInit.x - linewid, template_y)
 arrow same color royalblue right until even with (NMerge1.x - preOffset, NMerge1.y)
 NT1: circle "cf" small same
@@ -82,44 +78,32 @@ text "accept pt" small at NT0+(0,distLabel)
 text "round 1" small at NT1+(0,distLabel)
 text "round 2" small at NT2+(0,distLabel)
 
-# ---- feedback lane circles: forks off main at NAccept; each sync happens
-# right after that round's work commit, so it sits just `gap` after it ----
+# ---- feedback lane: forks off NAccept; each sync sits `gap` after its
+# round's work commit ----
 NF1: circle same fill purple "c8" small at (NWork1.x + gap, feedback_y)
 arrow same color purple
-NF2: circle "19" small same
-
-
+NF2: circle "19" small same at (NWork2.x + gap, feedback_y)
 
 color = purple
 text "feedback" ljust bold
-
 
 arrow same <- from NF1 left until even with NAccept+(stepH,0) then to NAccept chop
 
 text "sync 1" small at NF1+(0,distLabel)
 text "sync 2" small at NF2+(0,distLabel)
 
-
-# ---- Classroom50 copies the template's content to create the student repo --
-# NOT a git parent link like the dashed lines below (that's the whole point of
-# this script: the two histories start out genuinely unrelated), so drawn
-# distinctly: curved, colored, arrowed, and labeled -- the one explicit color
-# override among all the arrows ----
+# ---- Classroom50 copies the template to create the student repo -- NOT a git
+# parent link (these histories start unrelated), so drawn distinctly: curved,
+# colored, labeled ----
 arc -> color 0xd9822b ccw rad 1.1 from NT0.s to NInit.w chop "copy"  small italic
 
-# ---- cross-lane edges, two different kinds:
-# - the SECOND parent each join/merge/sync commit has (content brought in from
-#   the template's genuinely separate history) -- dashed, since that's the
-#   whole point of this script: these two histories start out unrelated.
-# - NF1's FIRST parent (NAccept) is not one of these: it's just feedback's own
-#   direct lineage continuing forward (feedback sat right there, unmoved,
-#   until this first sync), the same kind of relationship as every solid
-#   same-lane arrow above -- so it's drawn solid too, not dashed, even though
-#   it happens to cross from main's row into feedback's.
-# All drawn oblique/horizontal/oblique rather than one straight diagonal, so
-# the flat middle stretch reads clearly as "crossing lanes": each one moves
-# left by `stepH` and up by `stepV` (the oblique leg), then runs flat at that
-# raised height until it's above its target, then drops straight down into it.
+# ---- cross-lane edges, two kinds:
+# - 2nd parent (template content merged in, genuinely separate history) --
+#   dashed.
+# - NF1's 1st parent NAccept: feedback's own lineage continuing forward, same
+#   as the solid same-lane arrows above -- solid too, despite crossing lanes.
+# All routed oblique/flat/oblique (stepH left + stepV up, then flat, then
+# straight down) so the flat stretch reads as "crossing lanes".
 
 arrow <- dashed color royalblue from NJoin left stepH up stepV then left until even with NT0+(stepH,0) then to NT0 chop
 arrow same from NMerge1 to NT1
